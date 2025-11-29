@@ -38,4 +38,10 @@
 - 最小二乘法抗噪点能力较弱，容易因为干扰点的出现导致拟合的线条误差较大，不符合实际需求。
 
 
+注：项目需自己配置openCV的环境
+<img width="1392" height="815" alt="16b0dcf9ff4a974398a138617879d288" src="https://github.com/user-attachments/assets/950e841f-f69b-4c28-8013-e3bcf1aef4c2" />
+
+<img width="1415" height="803" alt="03c9268861ae6fc62d00c13d4c826835" src="https://github.com/user-attachments/assets/4ec988fe-ecb2-4ab6-96f6-843a4d3c2e17" />
+
+<img width="894" height="706" alt="image" src="https://github.com/user-attachments/assets/610524f9-f705-4772-bf26-88d4f12e5ffe" />
 
