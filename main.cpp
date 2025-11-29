@@ -230,58 +230,63 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case ID_BTN_FIT_CIRCLE: {
             if (g_src.empty()) break;
             g_display = g_src.clone();
-            
             Mat gray, edges;
-            if (g_src.channels() == 3) cvtColor(g_src, gray, COLOR_BGR2GRAY);
-            else gray = g_src.clone();
-            
+            if (g_src.channels() == 3) cvtColor(g_src, gray, COLOR_BGR2GRAY); else gray = g_src.clone();
             GaussianBlur(gray, gray, Size(9, 9), 2, 2);
             Canny(gray, edges, 50, 150);
-            
-            vector<Point> points;
-            findNonZero(edges, points);
-
-            if (points.size() < 3) {
-                MessageBox(hwnd, "未检测到足够的边缘点!", "警告", MB_OK);
-                break;
+            vector<vector<Point>> contours;
+            findContours(edges, contours, RETR_LIST, CHAIN_APPROX_NONE);
+            for (const auto& cnt : contours) {
+                if (cnt.size() < 20) continue;
+                Point2f center; float radius;
+                GeometryDetector::fitCircleLeastSquares(cnt, center, radius);
+                if (radius <= 0) continue;
+                double err = 0.0;
+                for (const auto& p : cnt) {
+                    err += fabs(norm(Point2f((float)p.x, (float)p.y) - center) - radius);
+                }
+                err /= cnt.size();
+                if (err < 2.5 && radius >= g_settings.minRadius && radius <= g_settings.maxRadius) {
+                    circle(g_display, center, cvRound(radius), Scalar(255, 255, 0), 2);
+                    circle(g_display, center, 3, Scalar(0, 0, 255), -1);
+                }
             }
-            Point2f center;
-            float radius;
-            GeometryDetector::fitCircleLeastSquares(points, center, radius);
-            // Draw fitted circle
-            circle(g_display, center, cvRound(radius), Scalar(255, 255, 0), 2);
-            circle(g_display, center, 3, Scalar(0, 0, 255), -1);
             imshow(g_currentWindowName, g_display);
         } break;
 
         case ID_BTN_FIT_LINE: {
             if (g_src.empty()) break;
             g_display = g_src.clone();
-            
             Mat gray, edges;
-            if (g_src.channels() == 3) cvtColor(g_src, gray, COLOR_BGR2GRAY);
-            else gray = g_src.clone();
-            
+            if (g_src.channels() == 3) cvtColor(g_src, gray, COLOR_BGR2GRAY); else gray = g_src.clone();
             GaussianBlur(gray, gray, Size(9, 9), 2, 2);
             Canny(gray, edges, 50, 150);
-            
-            vector<Point> points;
-            findNonZero(edges, points);
-
-            if (points.size() < 2) {
-                MessageBox(hwnd, "未检测到足够的边缘点!", "警告", MB_OK);
-                break;
+            vector<Vec4i> segments;
+            HoughLinesP(edges, segments, g_settings.rho, g_settings.theta, g_settings.threshold, g_settings.minLineLength, g_settings.maxLineGap);
+            vector<Point> allPts;
+            findNonZero(edges, allPts);
+            int w = g_src.cols, h = g_src.rows;
+            for (const auto& l : segments) {
+                int x1 = l[0], y1 = l[1], x2 = l[2], y2 = l[3];
+                int minx = max(0, min(x1, x2) - 5);
+                int miny = max(0, min(y1, y2) - 5);
+                int maxx = min(w - 1, max(x1, x2) + 5);
+                int maxy = min(h - 1, max(y1, y2) + 5);
+                vector<Point> pts;
+                for (const auto& p : allPts) {
+                    if (p.x < minx || p.x > maxx || p.y < miny || p.y > maxy) continue;
+                    double d = GeometryDetector::pointToLineDistance(Point2f((float)p.x, (float)p.y), Vec4f((float)x1, (float)y1, (float)x2, (float)y2));
+                    if (d < 2.0) pts.push_back(p);
+                }
+                if (pts.size() < 2) continue;
+                Vec4f lineParam;
+                GeometryDetector::fitLineLeastSquares(pts, lineParam);
+                double vx = lineParam[0], vy = lineParam[1];
+                double x0 = lineParam[2], y0 = lineParam[3];
+                Point pt1(cvRound(x0 - 1000 * vx), cvRound(y0 - 1000 * vy));
+                Point pt2(cvRound(x0 + 1000 * vx), cvRound(y0 + 1000 * vy));
+                line(g_display, pt1, pt2, Scalar(0, 255, 255), 2, LINE_AA);
             }
-            Vec4f lineParam;
-            GeometryDetector::fitLineLeastSquares(points, lineParam);
-            
-            // Draw the line (need to calculate endpoints)
-            double vx = lineParam[0], vy = lineParam[1];
-            double x0 = lineParam[2], y0 = lineParam[3];
-            Point pt1(cvRound(x0 - 1000 * vx), cvRound(y0 - 1000 * vy));
-            Point pt2(cvRound(x0 + 1000 * vx), cvRound(y0 + 1000 * vy));
-            line(g_display, pt1, pt2, Scalar(0, 255, 255), 2, LINE_AA);
-            
             imshow(g_currentWindowName, g_display);
         } break;
 
